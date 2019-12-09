@@ -125,10 +125,44 @@ int writei(uint16_t ino, struct inode *inode) {
 }
 
 
+void printinode(struct inode * inode){
+	printf("\n--------PRINTING INODE-------------\n");
+	printf("Inode Number: %d\n", inode->ino);
+	printf("Link Count: %d\n", inode->link);
+	printf("Data Block Numbers: ");
+	int i;
+	for(i = 0; i < inode->link; i++) {
+		printf("[%d] -> ", inode->direct_ptr[i]);
+	} 
+	printf("\n\n");
+}
+
+
+void printDirectoryContents(struct inode * dirinode) {
+	printf("\n-------------DIRECTORY CONTENTS--------------\n");
+	int i;
+	for(i = 0; i < dirinode->link; i++) {
+		void * datablock = malloc(4096);
+		bio_read(dirinode->direct_ptr[i], datablock);
+		
+		struct dirent * direntptr = (struct dirent *) datablock;
+		while((void *) direntptr <= datablock + 4096 - sizeof(struct dirent)) {
+			if(direntptr->valid == 1) {
+				printf("Filename: %s ", direntptr->name);
+				printf("Inode: %d\n", direntptr->ino);			
+			}
+			direntptr++;
+		} 
+
+	}
+	printf("\n");
+
+}
+
+
 struct dirent * getFnameDirent(struct inode dirinode, const char *fname) {
 	
 	void * datablock = malloc(4096);
-
 	int i;
 	struct dirent * datablockdirent;
 	for(i = 0; i < dirinode.link; i++) {
@@ -137,9 +171,9 @@ struct dirent * getFnameDirent(struct inode dirinode, const char *fname) {
 		datablockdirent = (struct dirent *) datablock;
 		
 		while((void *) datablockdirent <= datablock + 4096 - sizeof(struct dirent)){
-			if(datablockdirent->valid == 1)  {
+			/*if(datablockdirent->valid == 1)  {
 				printf("Accessing dirent with name: %s, ino: %d\n", datablockdirent->name, datablockdirent->ino);
-			}
+			}*/
 			if(datablockdirent->valid == 1 && !strcmp(fname, datablockdirent->name)){
 				return datablockdirent;
 			}
@@ -151,11 +185,14 @@ struct dirent * getFnameDirent(struct inode dirinode, const char *fname) {
 
 
 
+
 /* 
  * directory operations
  */
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
-	
+	printf("\n-------------- CALLING DIR FIND ON FILE %s FROM INODE %d----------------\n", fname, ino);	
+
+
 	// Step 1: Call readi() to get the inode using ino (inode number of current directory)
 	struct inode * dirinode = (struct inode *) malloc(sizeof(struct inode));
 	readi(ino, dirinode);
@@ -166,6 +203,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 
 
 	if(!datablockdirent) {
+		printf("Data block dirent is nullington\n");
 		return -1;
 	} else {
 		dirent->ino = datablockdirent->ino;
@@ -183,11 +221,11 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 	printf("\n------- CALLING DIR ADD ON FILE %s --------\n", fname);
 
 	//Returns null if not already present, a dirent containing file info if present
-	/*struct dirent * alreadyPresentDirent = getFnameDirent(dir_inode, fname);
+	struct dirent * alreadyPresentDirent = getFnameDirent(dir_inode, fname);
 	if(alreadyPresentDirent) {
 		printf("File already present in dir\n");
 		return -1;	
-	}*/
+	}
 
 	//Initialize stuff
 	void *datablock = malloc(4096);
@@ -213,6 +251,7 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 				//Store new dirent in datablock		
 				datablockdirent->valid = 1;
 				datablockdirent->ino = f_ino;
+				memset(datablockdirent->name, '\0', 252);
 				memcpy(datablockdirent->name, fname, name_len);
 
 				//Write datablock back to diskfile
@@ -260,6 +299,7 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 		struct dirent * newdirent = (struct dirent *) newdatablock;
 		newdirent->valid = 1;
 		newdirent->ino = f_ino;
+		memset(newdirent->name, '\0', 252);
 		memcpy(newdirent->name, fname, name_len);
 		bio_write(blockno, newdirent);
 		
@@ -275,17 +315,37 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 
 }
 
+
+
+
+
 int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 
 	// Step 1: Read dir_inode's data block and checks each directory entry of dir_inode
-	
-	
-	
 	// Step 2: Check if fname exist
-
 	// Step 3: If exist, then remove it from dir_inode's data block and write to disk
+	
+	void * datablock = malloc(4096);
+	int i;
+	struct dirent * datablockdirent;
+	for(i = 0; i < dir_inode.link; i++) {
+	 	bio_read(dir_inode.direct_ptr[i], datablock);
 
-	return 0;
+		datablockdirent = (struct dirent *) datablock;
+		
+		while((void *) datablockdirent <= datablock + 4096 - sizeof(struct dirent)){
+			/*if(datablockdirent->valid == 1)  {
+				printf("Accessing dirent with name: %s, ino: %d\n", datablockdirent->name, datablockdirent->ino);
+			}*/
+			if(datablockdirent->valid == 1 && !strcmp(fname, datablockdirent->name)){
+				datablockdirent->valid = 0;
+				bio_write(dir_inode.direct_ptr[i], datablock);
+				return 0;
+			}
+			datablockdirent++;
+		}
+	}
+	return -1;	
 }
 
 /* 
@@ -300,66 +360,74 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 }
 
 
-void printinode(struct inode * inode){
-	printf("\n--------PRINTING INODE-------------\n");
-	printf("Inode Number: %d\n", inode->ino);
-	printf("Link Count: %d\n", inode->link);
-	printf("Data Block Numbers: ");
-	int i;
-	for(i = 0; i < inode->link; i++) {
-		printf("[%d] -> ", inode->direct_ptr[i]);
-	} 
-	printf("\n\n");
-}
-
-
-void printDirectoryContents(struct inode * dirinode) {
-	printf("\n-------------DIRECTORY CONTENTS--------------\n");
-	int i;
-	for(i = 0; i < dirinode->link; i++) {
-		void * datablock = malloc(4096);
-		bio_read(dirinode->direct_ptr[i], datablock);
-		
-		struct dirent * direntptr = (struct dirent *) datablock;
-		while((void *) direntptr <= datablock + 4096 - sizeof(struct dirent)) {
-			if(direntptr->valid == 1) {
-				printf("Filename: %s ", direntptr->name);
-				printf("Inode: %d\n", direntptr->ino);			
-			}
-			direntptr++;
-		} 
-
-	}
-	printf("\n");
-
-}
-
-
 void testAddMethod() {
 	//Initialize before add inode
 	struct inode * rootinode = (struct inode *) malloc(sizeof(struct inode));	
-	readi(0, rootinode);
+	readi(sb.i_start_blk, rootinode);
 	printinode(rootinode);
 
-	int nfilestoadd = 256;
-	char * fname = "constant";
+	//ADDING FILES
+	int nfilestoadd = 100;
+	char fname[256];
 	uint64_t f_ino;
+
+	strcpy(fname, "myfile");
 
 	int i;
 	for(i = 0; i < nfilestoadd; i++) {
-		
+		sprintf(fname + 6, "%d", i);
+		fname[10] = '\0';
 		f_ino = get_avail_ino();
 		dir_add(*rootinode, f_ino, fname, strlen(fname));	
-		readi(0, rootinode);
+		readi(sb.i_start_blk, rootinode);
 		//printinode(rootinode);
 	}
 
-	//TRIGGER MEMORY CORRUPTION
 	printDirectoryContents(rootinode);	
 
+
+	//DELETING FILES
+	int nfilestodelete = 47;
+	char dfname[256];
+	
+	strcpy(dfname, "myfile");
+
+	for(i = 0; i < nfilestodelete; i++) {
+		sprintf(dfname + 6, "%d", i);
+		dfname[10] = '\0';
+		dir_remove(*rootinode, dfname, strlen(dfname));	
+		readi(sb.i_start_blk, rootinode);
+		//printinode(rootinode);
+	}
+
+
+	printDirectoryContents(rootinode);
+	
+
+	//ADDING DIFFERENT FILES
+	int nfilestoreadd = 209;
+	char rfname[256];	
+	strcpy(rfname, "newguy");
+	for(i = 0; i < nfilestoreadd; i++) {
+		sprintf(rfname + 6, "%d", i);
+		rfname[10] = '\0';
+		f_ino = get_avail_ino();
+		dir_add(*rootinode, f_ino, rfname, strlen(rfname));	
+		readi(sb.i_start_blk, rootinode);
+		//printinode(rootinode);
+	}
+
+	printDirectoryContents(rootinode);
+
+	
+	//FINDING FILE
+	char * finddir = "newguy202";
+	struct dirent * storage = (struct dirent *) malloc(sizeof(struct dirent));
+	dir_find(sb.i_start_blk, finddir,strlen(finddir), storage);
+	printf("Resulting dirent block: %s, %d\n", storage->name, storage->ino);
+	
+	
 }
-
-
 
 
 
@@ -395,7 +463,7 @@ int tfs_mkfs() {
 			
 	// update bitmap information for root directory			
 	struct inode * rootinode = (struct inode *) malloc(sizeof(struct inode));
-	rootinode->ino = 0;
+	rootinode->ino = sb.i_start_blk;
 	rootinode->valid = 1;
 	rootinode->link = 0;
 		
