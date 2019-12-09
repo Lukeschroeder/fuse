@@ -10,7 +10,20 @@ OBJ=tfs.o block.o
 tfs: $(OBJ)
 	$(CC) $(OBJ) $(LDFLAGS) -o tfs
 
+link: 
+	./tfs -s -d  /tmp/lhs52/mountdir
+
+unlink:
+	fusermount -u /tmp/lhs52/mountdir
+
+simple:
+	./tfs -simple
+
+
+
 .PHONY: clean
 clean:
-	rm -f *.o tfs
+	rm -f *.o tfs DISKFILE
+
+
 
