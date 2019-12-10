@@ -487,30 +487,27 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	if(dev_open(diskfile_path) < 0) {
 		tfs_mkfs();	
 		testAddMethod();	
-	} else {
+	}
+	else{ 	// Step 1b: If disk file is found, just initialize in-memory data structures and read superblock from disk
 		bio_read(0, &sb);
 		printf("Superblock Magic Num: %x", sb.magic_num);
 	}
-
-  // Step 1b: If disk file is found, just initialize in-memory data structures
-  // and read superblock from disk
-
 	return NULL;
 }
 
 static void tfs_destroy(void *userdata) {
-
 	// Step 1: De-allocate in-memory data structures
-
+	memset(userdata,0,DISK_SIZE);
 	// Step 2: Close diskfile
-
+	remove(diskfile_path);
 }
 
 static int tfs_getattr(const char *path, struct stat *stbuf) {
 
 	// Step 1: call get_node_by_path() to get inode from path
-
-
+	struct inode inode;
+	int n=get_node_by_path(path, stbuf->st_ino, &inode));
+	
 	// Step 2: fill attribute of file into stbuf from inode
 
 		stbuf->st_mode   = S_IFDIR | 0755;
@@ -523,7 +520,8 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
 
 	// Step 1: Call get_node_by_path() to get inode from path
-
+	struct inode inode;
+        int n=get_node_by_path(path, stbuf->st_ino, &inode));
 	// Step 2: If not find, return -1
 
     return 0;
@@ -560,17 +558,31 @@ static int tfs_mkdir(const char *path, mode_t mode) {
 static int tfs_rmdir(const char *path) {
 
 	// Step 1: Use dirname() and basename() to separate parent directory path and target directory name
-
+	char* dirn=dirname(path);
+	char* basen=basename(path);
 	// Step 2: Call get_node_by_path() to get inode of target directory
-
+	struct inode parent;
+	struct inode target;
+	int n=get_node_by_path(dirn,0,&parent);
+	n=get_node_by_path(basen,n,&target);
 	// Step 3: Clear data block bitmap of target directory
-
+	int i=0;
+	while(i<8){
+		if(target.direct_ptr[i]!=0){
+			unset_bitmap(sb.d_bitmap_blk,target.direct_ptr[i]);
+			i++;	
+		}
+		else{
+			i=8;
+		}
+	}
 	// Step 4: Clear inode bitmap and its data block
-
+	unset_bitmap(sb.i_bitmap_blk,n);
+	
 	// Step 5: Call get_node_by_path() to get inode of parent directory
-
+	//done above
 	// Step 6: Call dir_remove() to remove directory entry of target directory in its parent directory
-
+	dir_remove(parent,basen,strlen(path));
 	return 0;
 }
 
@@ -583,35 +595,46 @@ static int tfs_releasedir(const char *path, struct fuse_file_info *fi) {
 static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 
 	// Step 1: Use dirname() and basename() to separate parent directory path and target file name
-
+	char* dirn=dirname(path);
+        char* basen=basename(path);
 	// Step 2: Call get_node_by_path() to get inode of parent directory
-
+	struct inode parent;
+        struct inode target;
+        int n=get_node_by_path(dirn,0,&parent);
 	// Step 3: Call get_avail_ino() to get an available inode number
-
+	n=get_avail_ino();
 	// Step 4: Call dir_add() to add directory entry of target file to parent directory
-
+	dir_add(parent,n,basen,strlen(path));
+	//getdirent of the new entry
 	// Step 5: Update inode for target file
-
+	target.ino=n;
+	target.valid=1;
+	target.vstat.st_mode=mode;
+	//unsure what the point of fi is yet
 	// Step 6: Call writei() to write inode to disk
-
+	writei(n,target);
 	return 0;
 }
 
 static int tfs_open(const char *path, struct fuse_file_info *fi) {
 
 	// Step 1: Call get_node_by_path() to get inode from path
-
+	struct inode target;
+	int n=get_node_by_path(path,0,&target);
 	// Step 2: If not find, return -1
-
+	if(n<0){
+		return -1;
+	}
 	return 0;
 }
 
 static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
 
 	// Step 1: You could call get_node_by_path() to get inode from path
-
+	struct inode target;
+	int n=get_node_by_path(path,0,&target);
 	// Step 2: Based on size and offset, read its data blocks from disk
-
+	
 	// Step 3: copy the correct amount of data from offset to buffer
 
 	// Note: this function should return the amount of bytes you copied to buffer

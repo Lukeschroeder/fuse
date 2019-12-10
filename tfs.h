@@ -19,7 +19,7 @@
 #define MAGIC_NUM 0x5C3A
 #define MAX_INUM 1024
 #define MAX_DNUM 16384
-
+#define INODE_TO_DB 4
 
 struct superblock {
 	uint32_t	magic_num;			/* magic number */
@@ -47,7 +47,6 @@ struct dirent {
 	uint16_t valid;					/* validity of the directory entry */
 	char name[252];					/* name of the directory entry */
 };
-
 
 /*
  * bitmap operations
