@@ -521,18 +521,21 @@ static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
 
 	// Step 1: Call get_node_by_path() to get inode from path
 	struct inode inode;
-        int n=get_node_by_path(path, stbuf->st_ino, &inode));
+        int n=get_node_by_path(path,0, &inode));
 	// Step 2: If not find, return -1
-
+	if(n<0){
+		return -1;
+	}
     return 0;
 }
 
 static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
 
 	// Step 1: Call get_node_by_path() to get inode from path
-
+	struct inode target;
+	int n=get_node_by_path(path,0,&target);
 	// Step 2: Read directory entries from its data blocks, and copy them to filler
-
+	filler=
 	return 0;
 }
 
@@ -540,17 +543,22 @@ static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, o
 static int tfs_mkdir(const char *path, mode_t mode) {
 
 	// Step 1: Use dirname() and basename() to separate parent directory path and target directory name
-
+	char* dirn=dirname(path);
+        char* basen=basename(path);
 	// Step 2: Call get_node_by_path() to get inode of parent directory
-
+	struct inode parent;
+        struct inode target;
+        int n=get_node_by_path(dirn,0,&parent);
 	// Step 3: Call get_avail_ino() to get an available inode number
-
+	n=get_avail_ino();
 	// Step 4: Call dir_add() to add directory entry of target directory to parent directory
-
+	dir_add(parent,n,basen,strlen(basen));
 	// Step 5: Update inode for target directory
-
+	target.ino=n;
+	target.valid=1;
+	target.vstat.st_mode=mode;
 	// Step 6: Call writei() to write inode to disk
-	
+	writei(n,target);
 
 	return 0;
 }
@@ -612,7 +620,7 @@ static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 	target.vstat.st_mode=mode;
 	//unsure what the point of fi is yet
 	// Step 6: Call writei() to write inode to disk
-	writei(n,target);
+	writei(n,&target);
 	return 0;
 }
 
