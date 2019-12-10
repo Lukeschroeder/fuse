@@ -651,9 +651,11 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 
 static int tfs_write(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
 	// Step 1: You could call get_node_by_path() to get inode from path
-
+	struct inode target;
+        int n=get_node_by_path(path,0,&target);
 	// Step 2: Based on size and offset, read its data blocks from disk
-
+	size_t blocks=size/4096;
+	
 	// Step 3: Write the correct amount of data from offset to disk
 
 	// Step 4: Update the inode info and write it to disk
@@ -665,18 +667,34 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 static int tfs_unlink(const char *path) {
 
 	// Step 1: Use dirname() and basename() to separate parent directory path and target file name
-
-	// Step 2: Call get_node_by_path() to get inode of target file
-
+	char* dirn=dirname(path);
+        char* basen=basename(path);
+        // Step 2: Call get_node_by_path() to get inode of target file
+        struct inode parent;
+        struct inode target;
+        int n=get_node_by_path(dirn,0,&parent);
+	n=get_node_by_path(basen,parent.ino,&target);
 	// Step 3: Clear data block bitmap of target file
-
+	while(n<16){
+		if(target.direct_ptr[n]<0){
+			n=16;
+		}
+		else{
+			unset_bitmap(sb.d_bitmap_blk,direct_ptr[n]);
+			n++;
+		}
+	}
 	// Step 4: Clear inode bitmap and its data block
-
+	unset_bitmap(sb.i_bitmap_blk,target.ino);
+	char temp[4096];
+	for(n=0;n<4096;n++){
+		temp[4096]=0;
+	}
+	//unsure whether to use bio_write(); or writei();
 	// Step 5: Call get_node_by_path() to get inode of parent directory
-
+	//done above
 	// Step 6: Call dir_remove() to remove directory entry of target file in its parent directory
-
-	return 0;
+	return dir_remove(parent,basen,strlen(basen));
 }
 
 static int tfs_truncate(const char *path, off_t size) {
