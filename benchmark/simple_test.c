@@ -9,12 +9,12 @@
 #include <dirent.h>
 
 /* You need to change this macro to your TFS mount point*/
-#define TESTDIR "/tmp/mountdir"
+#define TESTDIR "/tmp/lhs52/mountdir"
 
 #define N_FILES 100
 #define BLOCKSIZE 4096
 #define FSPATHLEN 256
-#define ITERS 100
+#define ITERS 16
 #define FILEPERM 0666
 #define DIRPERM 0755
 
@@ -39,14 +39,14 @@ int main(int argc, char **argv) {
 		memset(buf, 0x61 + i, BLOCKSIZE);
 
 		if (write(fd, buf, BLOCKSIZE) != BLOCKSIZE) {
-			printf("TEST 2: File write failure \n");
+			printf("TEST 2: File write failure\n");
 			exit(1);
 		}
 	}
 	
 	fstat(fd, &st);
 	if (st.st_size != ITERS*BLOCKSIZE) {
-		printf("TEST 2: File write failure \n");
+		printf("TEST 2: File write failure\n");
 		exit(1);
 	}
 	printf("TEST 2: File write Success \n");
@@ -75,10 +75,10 @@ int main(int argc, char **argv) {
 			printf("TEST 4: File read failure \n");
 			exit(1);
 		}
-		//printf("buf %s \n", buf);
+		printf("buf %s \n", buf);
 	}
         
-	if (pread(fd, buf, BLOCKSIZE, 2*BLOCKSIZE) != BLOCKSIZE) {
+	/*if (pread(fd, buf, BLOCKSIZE, 2*BLOCKSIZE) != BLOCKSIZE) {
 		perror("pread");
 		printf("TEST 4: File read failure \n");
 		exit(1);
@@ -88,7 +88,6 @@ int main(int argc, char **argv) {
 	close(fd);
 
 
-	/* Unlink the file */
 	if ((ret = unlink(TESTDIR "/file")) < 0) {
 		perror("unlink");
 		printf("TEST 5: File unlink failure \n");
@@ -97,7 +96,6 @@ int main(int argc, char **argv) {
 	printf("TEST 5: File unlink success \n");
 
 
-	/* Directory creation test */
 	if ((ret = mkdir(TESTDIR "/files", DIRPERM)) < 0) {
 		perror("mkdir");
 		printf("TEST 6: failure. Check if dir %s already exists, and "
@@ -107,7 +105,6 @@ int main(int argc, char **argv) {
 	printf("TEST 6: Directory create success \n");
 
 	
-	/* Sub-directory creation test */
 	for (i = 0; i < N_FILES; ++i) {
 		char subdir_path[FSPATHLEN];
 		memset(subdir_path, 0, FSPATHLEN);
@@ -135,5 +132,6 @@ int main(int argc, char **argv) {
 	printf("TEST 7: Sub-directory create success \n");
 
 	printf("Benchmark completed \n");
+	*/
 	return 0;
 }
